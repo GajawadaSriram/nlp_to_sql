@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NLP2SQL DASHBOARD</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", "Lucida Sans", Arial, sans-serif;
+        }
+        .container {
+            margin-top: 5%;
+        }
+        body{
+            background-color: #ffffff;
+        }
+        .schema {
+            margin: 10px 0;
+            font-size: 1.2em;
+            color: #524e4e;
+            opacity: 0;
+            animation: fadeIn 0.8s forwards 0.3s;
+        }
+
+        .alert {
+            margin-top: 20px;
+        }
+
+        .form-control {
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        button {
+            border: none;
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 10px;
+            border-radius: 30px;
+        }
+
+        button:hover {
+            background-color: #333;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 30px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+
+        th {
+            background-color: #000000;
+            color: white;
+        }
+
+        td {
+            background-color: #aaa7a7;
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* General button styles */
+button, .btn {
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+}
+
+button {
+    background-color: #313131;
+    color: #fff;
+    border: 1px solid #000000;
+}
+
+button:hover {
+    background-color: #4c4c4d;
+    border-color: #5c5c5c;
+}
+
+.btn-danger {
+    background-color: #1b1b1b;
+    color: #fff;
+    border: 1px solid #1b1b1b;
+}
+
+.btn-danger:hover {
+    background-color: #4c4c4d;
+    border-color: #4c4c4d;
+}
+
+.btn-danger {
+    margin-left: auto;
+    margin-right: 10px;
+}
+
+.btn-primary {
+    background-color: #1b1b1b;
+    color: #fff;
+    border: 1px solid #1b1b1b;
+}
+
+.btn-primary:hover {
+    background-color: #4c4c4d;
+    border-color: #4c4c4d;
+}
+
+@media screen and (max-width: 768px) {
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}
+
+    </style>
+</head>
+<body class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>Dashboard</h2>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+    </div>
+    <form action="{{ url_for('upload_csv') }}" method="post" enctype="multipart/form-data">
+        <label for="file">Upload CSV File:</label>
+        <input type="file" name="file" accept=".csv" required>
+        <input type="submit" value="Upload">
+    </form>
+    {% if success_message %}
+    <div class="alert alert-success">{{ success_message }}</div>
+    {% endif %}
+    {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    <hr>
+   <h4>Database Schema Overview</h4>
+
+{% if schema_info %}
+    {% set tables = schema_info.items() | selectattr('0', 'ne', 'sqlite_sequence') | list %}
+    {% if tables %}
+        {% for table, columns in tables %}
+            <div class="schema">
+                <strong>{{ table }}</strong>: {{ columns | join(', ') }}
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No user-created tables found in the database.</p>
+    {% endif %}
+{% else %}
+    <p>No tables found in the database.</p>
+{% endif %}
+    <form method="POST">
+        <div class="form-group">
+            <textarea id='sql_command' name="sql_command" class="form-control" rows="4" placeholder="Enter your NLP command here...">{{ sql_command }}</textarea>
+            <button type="button" id="voiceInput" class="btn btn-secondary">🎤 Speak</button>
+        </div>
+        <button type="submit" class="btn btn-primary">Execute</button>
+    </form>
+    <br>
+    {% if output %}
+    <h2>Query Results</h2>
+
+    
+    
+    <h4>Results:</h4>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                {% for col in output.columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in output.rows %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+
+</form>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const voiceBtn = document.getElementById("voiceInput");
+        const textArea = document.getElementById("sql_command");
+
+        if ('webkitSpeechRecognition' in window) {
+            let recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = "en-US";
+
+            recognition.onresult = function (event) {
+                let speechResult = event.results[0][0].transcript;
+                textArea.value = speechResult;
+            };
+
+            recognition.onerror = function (event) {
+                console.error("Speech recognition error:", event.error);
+            };
+
+            voiceBtn.addEventListener("click", function () {
+                recognition.start();
+            });
+        } else {
+            voiceBtn.disabled = true;
+            voiceBtn.innerText = "Voice Not Supported";
+        }
+    });
+</script>
+
+</body>
+</html>
